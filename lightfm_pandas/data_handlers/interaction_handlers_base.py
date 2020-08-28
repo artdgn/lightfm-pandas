@@ -8,9 +8,9 @@ import scipy.sparse as sp
 
 from sklearn.model_selection import train_test_split
 
-from ml_recsys_tools.utils.instrumentation import LogLongCallsMeta
-from ml_recsys_tools.utils.pandas_utils import console_settings
-from ml_recsys_tools.utils.sklearn_extenstions import PDLabelEncoder
+from lightfm_pandas.utils.instrumentation import LogLongCallsMeta
+from lightfm_pandas.utils.pandas_utils import console_settings
+from lightfm_pandas.utils.sklearn_extenstions import PDLabelEncoder
 
 console_settings()
 

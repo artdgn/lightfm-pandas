@@ -4,8 +4,8 @@ import numpy as np
 import scipy.sparse as sp
 from sklearn.metrics.pairwise import cosine_similarity, euclidean_distances
 
-from ml_recsys_tools.utils.instrumentation import log_time_and_shape
-from ml_recsys_tools.utils.parallelism import map_batches_multiproc
+from lightfm_pandas.utils.instrumentation import log_time_and_shape
+from lightfm_pandas.utils.parallelism import map_batches_multiproc
 
 
 def _row_ind_mat(ar):

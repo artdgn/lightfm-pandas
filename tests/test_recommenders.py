@@ -6,12 +6,12 @@ from copy import deepcopy
 
 import time
 
-from ml_recsys_tools.data_handlers.interactions_with_features import ObsWithFeatures
-from ml_recsys_tools.datasets.prep_movielense_data import get_and_prep_data
+from lightfm_pandas.data_handlers.interactions_with_features import ObsWithFeatures
+from lightfm_pandas.datasets.prep_movielense_data import get_and_prep_data
 
-from ml_recsys_tools.utils.instrumentation import pickle_size_mb
+from lightfm_pandas.utils.instrumentation import pickle_size_mb
 
-from ml_recsys_tools.utils.testing import TestCaseWithState
+from lightfm_pandas.utils.testing import TestCaseWithState
 from tests.test_movielens_data import movielens_dir
 
 rating_csv_path, users_csv_path, movies_csv_path = get_and_prep_data(movielens_dir)
@@ -65,7 +65,7 @@ class TestRecommendersBasic(TestCaseWithState):
     def test_b_1_lfm_recommender(self):
         self._setup_obs_handler()
 
-        from ml_recsys_tools.recommenders.lightfm_recommender import LightFMRecommender
+        from lightfm_pandas.recommenders.lightfm_recommender import LightFMRecommender
         lfm_rec = LightFMRecommender()
         lfm_rec.fit(self.state.train_obs, epochs=20)
         self.assertEqual(lfm_rec.fit_params['epochs'], 20)
@@ -76,7 +76,7 @@ class TestRecommendersBasic(TestCaseWithState):
     def test_b_1_lfm_hybrid(self):
         self._setup_obs_handler()
 
-        from ml_recsys_tools.recommenders.lightfm_recommender import LightFMRecommender
+        from lightfm_pandas.recommenders.lightfm_recommender import LightFMRecommender
         lfm_rec = LightFMRecommender(external_features=self.state.train_obs.get_item_features(), no_components=50)
         lfm_rec.fit(self.state.train_obs, epochs=20)
         self._test_recommender(lfm_rec)

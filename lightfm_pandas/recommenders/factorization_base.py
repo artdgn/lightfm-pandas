@@ -4,8 +4,8 @@ import pandas as pd
 import numpy as np
 import scipy.sparse as sp
 
-from ml_recsys_tools.recommenders.recommender_base import BasePredictorRecommender
-from ml_recsys_tools.utils.similarity import most_similar
+from lightfm_pandas.recommenders.recommender_base import BasePredictorRecommender
+from lightfm_pandas.utils.similarity import most_similar
 
 
 class BaseFactorizationRecommender(BasePredictorRecommender):

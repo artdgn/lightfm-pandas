@@ -4,9 +4,9 @@ import numpy as np
 from lightfm import LightFM
 import lightfm.lightfm
 
-from ml_recsys_tools.recommenders.factorization_base import BaseFactorizationRecommender
-from ml_recsys_tools.utils.instrumentation import log_errors
-from ml_recsys_tools.utils.parallelism import N_CPUS
+from lightfm_pandas.recommenders.factorization_base import BaseFactorizationRecommender
+from lightfm_pandas.utils.instrumentation import log_errors
+from lightfm_pandas.utils.parallelism import N_CPUS
 
 logger = logging.getLogger(__name__)
 

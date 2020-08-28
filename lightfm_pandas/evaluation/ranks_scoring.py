@@ -5,8 +5,8 @@ import numpy as np
 import pandas as pd
 from lightfm.evaluation import precision_at_k, recall_at_k, auc_score, reciprocal_rank
 
-from ml_recsys_tools.utils.instrumentation import LogLongCallsMeta
-from ml_recsys_tools.utils.parallelism import N_CPUS
+from lightfm_pandas.utils.instrumentation import LogLongCallsMeta
+from lightfm_pandas.utils.parallelism import N_CPUS
 
 
 class ModelMockRanksCacher:

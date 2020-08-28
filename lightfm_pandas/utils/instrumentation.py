@@ -9,7 +9,7 @@ from threading import Thread
 
 from psutil import virtual_memory, cpu_percent
 
-from ml_recsys_tools.utils import logging_config
+from lightfm_pandas.utils import logging_config
 
 logging_config.config()
 

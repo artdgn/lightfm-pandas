@@ -4,14 +4,14 @@ using multiple test sets
 
 # dataset: download and prepare dataframes
 import pandas as pd
-from ml_recsys_tools.datasets.prep_movielense_data import get_and_prep_data
-from ml_recsys_tools.recommenders.lightfm_recommender import LightFMRecommender
+from lightfm_pandas.datasets.prep_movielense_data import get_and_prep_data
+from lightfm_pandas.recommenders.lightfm_recommender import LightFMRecommender
 
 rating_csv_path, users_csv_path, movies_csv_path = get_and_prep_data()
 
 # read the interactions dataframe and create a data handler object and  split to train and test
 ratings_df = pd.read_csv(rating_csv_path)
-from ml_recsys_tools.data_handlers.interaction_handlers_base import ObservationsDF
+from lightfm_pandas.data_handlers.interaction_handlers_base import ObservationsDF
 
 obs = ObservationsDF(ratings_df)
 train_obs, test_obs = obs.split_train_test(ratio=0.2, users_ratio=0.2)

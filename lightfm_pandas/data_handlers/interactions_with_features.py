@@ -9,10 +9,10 @@ import scipy.sparse as sp
 from sklearn.preprocessing import LabelBinarizer, normalize, LabelEncoder
 from sklearn_pandas import DataFrameMapper
 
-from ml_recsys_tools.utils.sklearn_extenstions import NumericBinningBinarizer
+from lightfm_pandas.utils.sklearn_extenstions import NumericBinningBinarizer
 
-from ml_recsys_tools.data_handlers.interaction_handlers_base import ObservationsDF, RANDOM_STATE
-from ml_recsys_tools.utils.instrumentation import LogLongCallsMeta
+from lightfm_pandas.data_handlers.interaction_handlers_base import ObservationsDF, RANDOM_STATE
+from lightfm_pandas.utils.instrumentation import LogLongCallsMeta
 
 logger = logging.getLogger(__name__)
 

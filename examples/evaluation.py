@@ -2,10 +2,10 @@
 Example explaining the peculiriaties of evaluation
 """
 
-from ml_recsys_tools.datasets.prep_movielense_data import get_and_prep_data
+from lightfm_pandas.datasets.prep_movielense_data import get_and_prep_data
 import pandas as pd
-from ml_recsys_tools.data_handlers.interaction_handlers_base import ObservationsDF
-from ml_recsys_tools.recommenders.lightfm_recommender import LightFMRecommender
+from lightfm_pandas.data_handlers.interaction_handlers_base import ObservationsDF
+from lightfm_pandas.recommenders.lightfm_recommender import LightFMRecommender
 
 rating_csv_path, users_csv_path, movies_csv_path = get_and_prep_data()
 ratings_df = pd.read_csv(rating_csv_path)

@@ -9,14 +9,14 @@ import numpy as np
 import pandas as pd
 from scipy.stats import rankdata
 
-from ml_recsys_tools.utils.instrumentation import LogLongCallsMeta
-from ml_recsys_tools.utils.parallelism import map_batches_multiproc
-from ml_recsys_tools.utils.similarity import top_N_sorted
+from lightfm_pandas.utils.instrumentation import LogLongCallsMeta
+from lightfm_pandas.utils.parallelism import map_batches_multiproc
+from lightfm_pandas.utils.similarity import top_N_sorted
 
-from ml_recsys_tools.data_handlers.interaction_handlers_base import InteractionMatrixBuilder, ObservationsDF
-from ml_recsys_tools.data_handlers.interactions_with_features import ItemsHandler
+from lightfm_pandas.data_handlers.interaction_handlers_base import InteractionMatrixBuilder, ObservationsDF
+from lightfm_pandas.data_handlers.interactions_with_features import ItemsHandler
 
-from ml_recsys_tools.evaluation.ranks_scoring import mean_scores_report_on_ranks
+from lightfm_pandas.evaluation.ranks_scoring import mean_scores_report_on_ranks
 
 logger = logging.getLogger(__name__)
 
