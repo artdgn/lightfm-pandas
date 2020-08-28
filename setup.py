@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 from os import path
 
-version = '0.9.1'
+version = '0.1.0'
 
 here = path.abspath(path.dirname(__file__))
 
@@ -10,12 +10,12 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
 setup(
-    name='ml_recsys_tools',
+    name='lightfm_pandas',
     version=version,
-    description='Tools for recommendation systems development',
+    description='LightFM convenience tools',
     long_description=long_description,
     long_description_content_type='text/markdown',
-    url='https://github.com/artdgn/ml-recsys-tools',
+    url='https://github.com/artdgn/lightfm-pandas',
     author='Arthur Deygin',
     author_email='arthurdgn@gmail.com',
     classifiers=[

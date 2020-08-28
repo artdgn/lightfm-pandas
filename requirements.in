@@ -4,8 +4,6 @@ psutil
 pandas
 numpy
 scipy
-lightgbm
 lightfm
-implicit
 scikit_learn
 sklearn_pandas

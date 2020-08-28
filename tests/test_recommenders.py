@@ -240,57 +240,6 @@ class TestRecommendersBasic(TestCaseWithState):
                 self.assertTrue(all(deviations < 0.01))
 
 
-    def test_c_cooc_recommender(self):
-        from ml_recsys_tools.recommenders.cooccurrence_recommenders import ItemCoocRecommender
-
-        item_cooc_rec = ItemCoocRecommender()
-        item_cooc_rec.fit(self.state.train_obs)
-        item_cooc_rep = item_cooc_rec.eval_on_test_by_ranking(self.state.test_obs, prefix='item cooccurrence ')
-        logger.info(item_cooc_rep)
-        self._test_recommender(item_cooc_rec)
-        self.state.item_cooc_rec = item_cooc_rec
-
-    def test_c_als_recommender(self):
-        from ml_recsys_tools.recommenders.implib_recommenders import ALSRecommender
-
-        als_rec = ALSRecommender()
-        als_rec.fit(self.state.train_obs)
-        als_rep = als_rec.eval_on_test_by_ranking(self.state.test_obs, prefix='als ')
-        logger.info(als_rep)
-        self._test_recommender(als_rec)
-
-    def test_c_features_simil_recommender(self):
-        from ml_recsys_tools.recommenders.similarity_recommenders import FeaturesSimilRecommender
-
-        cos_rec = FeaturesSimilRecommender()
-        cos_rec.fit(self.state.train_obs)
-        cos_rep = cos_rec.eval_on_test_by_ranking(self.state.test_obs, prefix='cosine ')
-        logger.info(cos_rep)
-
-        # not using _test_recommender because this recommender will fail on fake_data_test and exclusion_test
-        self._test_get_recommendations(cos_rec)
-        self._test_get_similar_items(cos_rec)
-        self._test_predict_for_user(cos_rec)
-
-    def test_d_comb_rank_ens(self):
-        from ml_recsys_tools.recommenders.combination_ensembles import CombinedRankEnsemble
-
-        comb_ranks_rec = CombinedRankEnsemble(
-            recommenders=[self.state.lfm_rec, self.state.item_cooc_rec])
-        comb_rank_rep = comb_ranks_rec.eval_on_test_by_ranking(self.state.test_obs, prefix='combined ranks ')
-        logger.info(comb_rank_rep)
-        self._test_recommender(comb_ranks_rec)
-
-    def test_d_comb_simil_ens(self):
-        from ml_recsys_tools.recommenders.combination_ensembles import CombinedSimilRecoEns
-
-        comb_simil_rec = CombinedSimilRecoEns(
-            recommenders=[self.state.lfm_rec, self.state.item_cooc_rec])
-        comb_simil_rec.fit(self.state.train_obs)
-        comb_simil_rep = comb_simil_rec.eval_on_test_by_ranking(self.state.test_obs, prefix='combined simils ')
-        logger.info(comb_simil_rep)
-        self._test_recommender(comb_simil_rec)
-
     def test_d_lfm_reduce_memory_size(self):
         lfm_rec = deepcopy(self.state.lfm_rec)
         mem_before = pickle_size_mb(lfm_rec)

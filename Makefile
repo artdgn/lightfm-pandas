@@ -1,7 +1,6 @@
-REPO_NAME=ml-recsys-tools
+REPO_NAME=litghtfm-pandas
 VENV_ACTIVATE=. .venv/bin/activate
 PYTHON=.venv/bin/python
-DOCKER_TAG=artdgn/$(REPO_NAME)
 
 .venv:
 	python3 -m venv .venv
