@@ -1,0 +1,10 @@
+.git
+.dockerignore
+.circleci
+build
+dist
+doc
+out
+*.egg*
+src
+scripts
