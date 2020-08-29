@@ -24,11 +24,6 @@ class ModelMockRanksCacher:
         return self.cached_mat
 
 
-def mean_scores_report(model, datasets, dataset_names, k=10):
-    ranks_list = [model.predict_rank(dataset, num_threads=N_CPUS) for dataset in datasets]
-    return mean_scores_report_on_ranks(ranks_list, datasets, dataset_names, k)
-
-
 def mean_scores_report_on_ranks(ranks_list, datasets, dataset_names, k=10):
     data = []
     full_reports = {}
@@ -130,17 +125,6 @@ def best_possible_ranks(test_mat):
         [np.random.choice(item_inds[:n], n, replace=False) if n else []
          for n in nnz_counts]).astype(np.float32)
     return best_ranks
-
-
-def chance_ranks(test_mat):
-    rand_ranks = test_mat.tocsr().copy()
-    n_users, n_items = test_mat.shape
-    item_inds = np.arange(n_items)
-    nnz_counts = rand_ranks.getnnz(axis=1)
-    rand_ranks.data = np.concatenate(
-        [np.random.choice(item_inds, n, replace=False)
-         for n in nnz_counts]).astype(np.float32)
-    return rand_ranks
 
 
 def precision_at_k_on_ranks(
@@ -257,44 +241,3 @@ def coverage_at_k(ranks, test_interactions, k=10, train_interactions=None, prese
     n_rows = np.sum(test_interactions.getnnz(axis=1) > 0) if not preserve_rows else ranks.shape[0]
 
     return np.repeat(percentage, n_rows)
-
-
-def gini_coefficient_at_k(ranks, test_interactions, k=10, train_interactions=None, preserve_rows=False):
-    """
-    coverage metric:
-        calculates the gini coefficient for the
-        counts of recommended items @ k for all users
-    """
-
-    def gini(x, w=None):
-        # https://stackoverflow.com/questions/48999542/more-efficient-weighted-gini-coefficient-in-python/
-        # The rest of the code requires numpy arrays.
-        x = np.asarray(x)
-        if w is not None:
-            w = np.asarray(w)
-            sorted_indices = np.argsort(x)
-            sorted_x = x[sorted_indices]
-            sorted_w = w[sorted_indices]
-            # Force float dtype to avoid overflows
-            cumw = np.cumsum(sorted_w, dtype=float)
-            cumxw = np.cumsum(sorted_x * sorted_w, dtype=float)
-            return (np.sum(cumxw[1:] * cumw[:-1] - cumxw[:-1] * cumw[1:]) /
-                    (cumxw[-1] * cumw[-1]))
-        else:
-            sorted_x = np.sort(x)
-            n = len(x)
-            cumx = np.cumsum(sorted_x, dtype=float)
-            # The above formula, with all weights equal to 1 simplifies to:
-            return (n + 1 - 2 * np.sum(cumx) / cumx[-1]) / n
-
-    ranks = ranks.copy().tocsr()
-    ranks.data += 1
-    ranks.data[ranks.data > k] *= 0
-    ranks.eliminate_zeros()
-
-    cols, counts = np.unique(ranks.indices, return_counts=True)
-    counts = np.concatenate([counts, np.zeros(ranks.shape[1] - len(counts))])
-
-    n_rows = np.sum(test_interactions.getnnz(axis=1) > 0) if not preserve_rows else ranks.shape[0]
-
-    return np.repeat(gini(counts), n_rows)

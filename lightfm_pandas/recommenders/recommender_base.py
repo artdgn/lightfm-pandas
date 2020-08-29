@@ -111,19 +111,6 @@ class BaseDFRecommender(ABC, LogLongCallsMeta):
             **kwargs):
         return pd.DataFrame()
 
-    def _recos_lists_to_flat(self, recos_lists_df):
-
-        # n_users = len(recos_lists_df)
-        n_recos = len(recos_lists_df[self._item_col].iloc[0])
-
-        recos_df_flat = pd.DataFrame({
-            self._user_col: recos_lists_df[self._user_col].values.repeat(n_recos),
-            self._item_col: np.concatenate(recos_lists_df[self._item_col].values),
-            self._prediction_col: np.concatenate(recos_lists_df[self._prediction_col].values),
-        })
-
-        return recos_df_flat
-
     @staticmethod
     def _flat_df_to_lists(df, sort_col, group_col, n_cutoff, target_columns):
         order = [group_col] + target_columns

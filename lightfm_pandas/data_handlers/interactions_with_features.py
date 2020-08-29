@@ -3,7 +3,6 @@ import logging
 
 import numpy as np
 import pandas as pd
-from sklearn.cluster import MiniBatchKMeans
 import scipy.sparse as sp
 
 from sklearn.preprocessing import LabelBinarizer, normalize, LabelEncoder
@@ -11,7 +10,7 @@ from sklearn_pandas import DataFrameMapper
 
 from lightfm_pandas.utils.sklearn_extenstions import NumericBinningBinarizer
 
-from lightfm_pandas.data_handlers.interaction_handlers_base import ObservationsDF, RANDOM_STATE
+from lightfm_pandas.data_handlers.interaction_handlers_base import ObservationsDF
 from lightfm_pandas.utils.instrumentation import LogLongCallsMeta
 
 logger = logging.getLogger(__name__)
@@ -179,14 +178,6 @@ class ExternalFeaturesDF(LogLongCallsMeta):
         else:
             return None
 
-    def transform_df_to_mat(self, feat_df):
-        if self._numeric_duplicate_cols is not None:
-            for col in self._numeric_duplicate_cols:
-                feat_df[col + self._numeric_duplicate_suffix] = feat_df[col].copy()
-        feat_df[self.cat_cols] = feat_df[self.cat_cols].astype(str)
-        trans_mat = self.df_transformer.transform(feat_df)
-        return self._apply_weights_to_matrix(trans_mat)
-
     def _apply_weights_to_matrix(self, feat_mat):
         if np.isscalar(self._feat_weight):
             feat_mat = feat_mat.astype(np.float32) * self._feat_weight
@@ -283,7 +274,6 @@ class ObsWithFeatures(ObservationsDF, ItemsHandler):
 
     def __init__(self, df_obs, df_items, item_id_col='item_id', **kwargs):
         super().__init__(df_obs=df_obs, df_items=df_items, item_id_col=item_id_col, **kwargs)
-        self.cluster_label_col = 'cluster_label'
         self._filter_relevant_obs_and_items(stage='init')
 
     def _filter_relevant_obs_and_items(self, stage=''):
@@ -301,19 +291,6 @@ class ObsWithFeatures(ObservationsDF, ItemsHandler):
         if n_dropped_obs + n_dropped_items:
             logger.info('ObsWithFeatures:_filter_relevant_obs_and_items:%s '
                         'dropped %d observations, %d items' % (stage, n_dropped_obs, n_dropped_items))
-
-    def filter_by_cluster_label(self, label):
-        assert self.cluster_label_col in self.df_items.columns
-        other = copy.deepcopy(self)
-        other.df_items = self.df_items[self.df_items[self.cluster_label_col] == label].copy()
-        other._filter_relevant_obs_and_items(stage='filter_by_cluster_label')
-        return other
-
-    def _apply_filter(self, mask_filter):
-        other = copy.deepcopy(self)
-        other.df_items = self.df_items[mask_filter].copy()
-        other._filter_relevant_obs_and_items(stage='_apply_filter')
-        return other
 
     def sample_observations(self,
                             n_users=None,
@@ -351,116 +328,3 @@ class ObsWithFeatures(ObservationsDF, ItemsHandler):
         other = super().filter_interactions_by_df(other_df_obs, mode)
         other._filter_relevant_obs_and_items(stage='remove_interactions_by_df')
         return other
-
-
-class ObsWithGeoFeatures(ObsWithFeatures):
-
-    def __init__(self, df_obs, df_items, lat_col='lat', long_col='long',
-                 remove_nans=False, **kwargs):
-        super().__init__(df_obs=df_obs, df_items=df_items, **kwargs)
-        self.lat_col = lat_col
-        self.long_col = long_col
-        self.remove_nans = remove_nans
-        self.df_items = self._preprocess_geo_cols(self.df_items)
-
-    @property
-    def geo_cols(self):
-        return [self.lat_col, self.long_col]
-
-    def _preprocess_geo_cols(self, df):
-        if self.remove_nans:
-            # remove nans
-            filt_nan = df[self.lat_col].notnull() & \
-                       ~df[self.lat_col].isin(['None']) & \
-                       ~df[self.lat_col].isin(['nan'])
-            df = df[filt_nan].copy()
-
-        # to float
-        df[self.lat_col] = df[self.lat_col].astype(float)
-        df[self.long_col] = df[self.long_col].astype(float)
-
-        return df
-
-    def filter_by_location_range(self, min_lat, max_lat, min_long, max_long):
-        """ e.g.
-        min_lat = -33.851674299999999
-        max_lat = -33.767248700000003
-        min_long = 151.09386979999999
-        max_long = 151.31997699999999
-        """
-
-        geo_filt = (self.df_items[self.lat_col].values <= max_lat) & \
-                   (self.df_items[self.lat_col].values >= min_lat) & \
-                   (self.df_items[self.long_col].values <= max_long) & \
-                   (self.df_items[self.long_col].values >= min_long)
-
-        return self._apply_filter(geo_filt)
-
-    def filter_by_location_rectangle(self, center_lat, center_long, lat_side, long_side):
-        offset_lat = lat_side / 2
-        offset_long = long_side / 2
-        return self.filter_by_location_range(
-            center_lat - offset_lat, center_lat + offset_lat,
-            center_long - offset_long, center_long + offset_long)
-
-    def geo_cluster_items(self, n_clusters=20):
-        cls = MiniBatchKMeans(n_clusters=n_clusters,
-                              random_state=RANDOM_STATE). \
-            fit(self.df_items[self.geo_cols].values)
-
-        self.df_items[self.cluster_label_col] = cls.labels_
-
-    def calcluate_equidense_geo_grid(self, n_lat, n_long, overlap_margin, geo_box):
-
-        df_items = self.filter_by_location_range(**geo_box).df_items
-
-        geo_filters = []
-        lat_bins = np.percentile(df_items.lat, np.linspace(0, 100, n_lat + 1))
-
-        for i in range(n_lat):
-            cur_lat_bins = lat_bins[i:(i + 2)]
-
-            prop_slice = df_items[(df_items.lat.values <= cur_lat_bins[1]) &
-                                  (df_items.lat.values >= cur_lat_bins[0])]
-
-            long_bins = np.percentile(prop_slice.long, np.linspace(0, 100, n_long + 1))
-
-            lat_center = np.mean(cur_lat_bins)
-            side_lat = (cur_lat_bins[1] - cur_lat_bins[0]) + overlap_margin * 2
-
-            for j in range(n_long):
-                long_center = np.mean(long_bins[j:(j + 2)])
-                side_long = (long_bins[j + 1] - long_bins[j]) + overlap_margin * 2
-                geo_filters.append((lat_center, long_center, side_lat, side_long))
-
-        return geo_filters
-
-    @staticmethod
-    def calcluate_simple_geo_grid(n_lat, n_long, overlap_margin, geo_box):
-        # ranges
-        lat_range = geo_box['max_lat'] - geo_box['min_lat']
-        long_range = geo_box['max_long'] - geo_box['min_long']
-
-        # distance from center to borders without overlap
-        d_lat = lat_range / (n_lat * 2)
-        d_long = long_range / (n_long * 2)
-
-        # center locations
-        lat_centers = np.linspace(
-            geo_box['min_lat'] + d_lat, geo_box['max_lat'] - d_lat, n_lat)
-        long_centers = np.linspace(
-            geo_box['min_long'] + d_long, geo_box['max_long'] - d_long, n_long)
-
-        # add overlap to distances
-        side_lat = 2 * (d_lat + overlap_margin)
-        side_long = 2 * (d_long + overlap_margin)
-
-        # create geo filters
-        geo_filters = []
-        for lat_center in lat_centers:
-            for long_center in long_centers:
-                geo_filters.append((lat_center, long_center, side_lat, side_long))
-        return geo_filters
-
-
-

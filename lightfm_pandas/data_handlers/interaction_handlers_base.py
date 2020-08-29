@@ -14,8 +14,6 @@ from lightfm_pandas.utils.sklearn_extenstions import PDLabelEncoder
 
 console_settings()
 
-RANDOM_STATE = 42
-
 logger = logging.getLogger(__name__)
 
 
