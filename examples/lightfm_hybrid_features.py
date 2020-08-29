@@ -1,4 +1,4 @@
-from lightfm_pandas.datasets.prep_movielense_data import get_and_prep_data
+from lightfm_pandas.data.datasets.prep_movielense_data import get_and_prep_data
 rating_csv_path, users_csv_path, movies_csv_path = get_and_prep_data()
 
 # read the interactions dataframe and create a data handler object and  split to train and test
@@ -6,14 +6,14 @@ import pandas as pd
 ratings_df = pd.read_csv(rating_csv_path)
 movies_df = pd.read_csv(movies_csv_path)
 
-from lightfm_pandas.data_handlers.interactions_with_features import ObsWithFeatures
+from lightfm_pandas.data.interactions import ObsWithFeatures
 
 obs = ObsWithFeatures(df_obs=ratings_df, df_items=movies_df,
                       uid_col='userid', iid_col='itemid', item_id_col='itemid')
 train_obs, test_obs = obs.split_train_test(ratio=0.2)
 
 # compare LightFM recommenders
-from lightfm_pandas.recommenders.lightfm_recommender import LightFMRecommender
+from lightfm_pandas.modeling.lightfm import LightFMRecommender
 
 # no features - just CF
 cf_only = LightFMRecommender()

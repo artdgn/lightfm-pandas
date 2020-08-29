@@ -1,13 +1,13 @@
-import logging
+import abc
 import functools
-import pickle
-import time
 import inspect
+import logging
+import pickle
+import threading
+import time
 from types import FunctionType
-from abc import ABCMeta
-from threading import Thread
 
-from psutil import virtual_memory, cpu_percent
+import psutil
 
 from lightfm_pandas.utils import logging_config
 
@@ -84,7 +84,6 @@ def log_time_and_shape(fn):
     return inner if Config.use_instrumentation else fn
 
 
-
 class ResourceMonitor:
     """
     Class for monitoring the CPU and memory of a function call.
@@ -117,7 +116,7 @@ class ResourceMonitor:
     @staticmethod
     def _current():
         try:
-            return virtual_memory().percent, cpu_percent()
+            return psutil.virtual_memory().percent, psutil.cpu_percent()
         except KeyError:
             # for some reason there's a KeyError: ('psutil',) in psutil
             return 0, 0
@@ -143,7 +142,7 @@ class ResourceMonitor:
         if self._thread is not None:
             self._thread.join(0)
         self._run_condition = True
-        self._thread = Thread(target=self._thread_loop, name='ResourceMonitor')
+        self._thread = threading.Thread(target=self._thread_loop, name='ResourceMonitor')
         self._thread.start()
         return self
 
@@ -198,7 +197,7 @@ def decorate_all_metaclass(decorator):
                 isinstance(value, (FunctionType, classmethod)) and
                 getattr(value, 'decorate', True))
 
-    class DecorateAll(ABCMeta):
+    class DecorateAll(abc.ABCMeta):
         def __new__(cls, name, bases, dct):
             if dct.get('decorate', True):
                 for attr, value in dct.items():
@@ -257,9 +256,11 @@ def log_errors(message=None, return_on_error=None):
                 logger.exception(e)
                 fn_str = function_name_with_class(fn)
                 msg_str = ', Message: %s' % message if message else ''
-                logger.error('Failed: %s, Error: %s %s' %(fn_str, str(e), msg_str))
+                logger.error('Failed: %s, Error: %s %s' % (fn_str, str(e), msg_str))
                 return return_on_error
+
         return inner
+
     return decorator
 
 

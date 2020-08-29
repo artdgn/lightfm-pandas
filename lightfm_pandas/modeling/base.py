@@ -1,27 +1,22 @@
 import logging
 import os
-from abc import ABC, abstractmethod
-from copy import deepcopy
-from functools import partial
-from multiprocessing.pool import ThreadPool
+import abc
+import copy
+import functools
+import multiprocessing.pool
 
 import numpy as np
 import pandas as pd
-from scipy.stats import rankdata
+from scipy import stats
 
-from lightfm_pandas.utils.instrumentation import LogLongCallsMeta
-from lightfm_pandas.utils.parallelism import map_batches_multiproc
-from lightfm_pandas.utils.similarity import top_N_sorted
-
-from lightfm_pandas.data_handlers.interaction_handlers_base import InteractionMatrixBuilder, ObservationsDF
-from lightfm_pandas.data_handlers.interactions_with_features import ItemsHandler
-
-from lightfm_pandas.evaluation.ranks_scoring import mean_scores_report_on_ranks
+from lightfm_pandas.utils import instrumentation, array_math
+from lightfm_pandas.data import interactions
+from lightfm_pandas import evaluation
 
 logger = logging.getLogger(__name__)
 
 
-class BaseDFRecommender(ABC, LogLongCallsMeta):
+class BaseDFRecommender(abc.ABC, instrumentation.LogLongCallsMeta):
     default_model_params = {}
     default_fit_params = {}
 
@@ -40,12 +35,6 @@ class BaseDFRecommender(ABC, LogLongCallsMeta):
         self._set_fit_params(fit_params)
         # self.train_df = None
         self.model = None
-
-    def reduce_memory_for_serving(self):
-        """
-        method for removing any data to reduce memory for serving (gradients etc..)
-        """
-        pass
 
     @staticmethod
     def toggle_mkl_blas_1_thread(state):
@@ -92,11 +81,11 @@ class BaseDFRecommender(ABC, LogLongCallsMeta):
         # the rest are assumed to be model_params provided flat
         self._set_model_params(params)
 
-    @abstractmethod
-    def fit(self, train_obs: ObservationsDF, *args, **kwargs):
+    @abc.abstractmethod
+    def fit(self, train_obs: interactions.ObservationsDF, *args, **kwargs):
         return self
 
-    @abstractmethod
+    @abc.abstractmethod
     def get_recommendations(
             self, user_ids=None, item_ids=None, n_rec=10,
             exclusions=True,
@@ -104,7 +93,7 @@ class BaseDFRecommender(ABC, LogLongCallsMeta):
             **kwargs):
         return pd.DataFrame()
 
-    @abstractmethod
+    @abc.abstractmethod
     def eval_on_test_by_ranking(
             self, test_dfs, test_names=('',), prefix='rec ',
             include_train=True, items_filter=None, k=10,
@@ -242,9 +231,10 @@ class BaseDFSparseRecommender(BaseDFRecommender):
         self.set_items_handler(train_obs)
         
     def set_items_handler(self, train_obs):
-        if isinstance(train_obs, ItemsHandler):
-            self.items_handler = ItemsHandler(df_items=train_obs.df_items, 
-                                              item_id_col=train_obs.item_id_col)
+        if isinstance(train_obs,
+                      interactions.ItemsFeaturesHandler):
+            self.items_handler = interactions.ItemsFeaturesHandler(
+                df_items=train_obs.df_items, item_id_col=train_obs.item_id_col)
 
     def set_exclude_mat(self, exclude_obs=None, exclude_training=True):
         """
@@ -300,17 +290,6 @@ class BaseDFSparseRecommender(BaseDFRecommender):
                 (message_prefix, int(n_discard), len(array), message_suffix))
         return array[~new_labels_mask]
 
-    # def _remove_training_from_df(self, flat_df):
-    #     flat_df = pd.merge(
-    #         flat_df, self.train_df,
-    #         left_on=[self._user_col, self._item_col],
-    #         right_on=[self._user_col, self.sparse_mat_builder.iid_source_col],
-    #         how='left')
-    #     # keep only data that was present in left (recommendations) but no in right (training)
-    #     flat_df = flat_df[flat_df[self._rating_col].isnull()] \
-    #         [[self._user_col, self._item_col, self._prediction_col]]
-    #     return flat_df
-
     @staticmethod
     def _remove_self_similarities(flat_df, col1, col2):
         return flat_df[flat_df[col1].values != flat_df[col2].values].copy()
@@ -342,7 +321,7 @@ class BaseDFSparseRecommender(BaseDFRecommender):
         res = []
         report_dfs = []
         full_reports = {}
-        with ThreadPool(len(test_dfs) + int(include_train)) as pool:
+        with multiprocessing.pool.ThreadPool(len(test_dfs) + int(include_train)) as pool:
             if include_train:
                 res.append((prefix + 'train', pool.apply_async(train_ranks_func)))
 
@@ -352,7 +331,7 @@ class BaseDFSparseRecommender(BaseDFRecommender):
 
             for name, r in res:
                 ranks_mat, sp_mat = r.get()
-                means_report, full_report = mean_scores_report_on_ranks(
+                means_report, full_report = evaluation.mean_scores_report_on_ranks(
                     ranks_list=[ranks_mat], datasets=[sp_mat],
                     dataset_names=[name], k=k)
                 report_dfs.append(means_report)
@@ -361,19 +340,20 @@ class BaseDFSparseRecommender(BaseDFRecommender):
         report_df = pd.concat(report_dfs, sort=False)
         return report_df, full_reports
 
-    def get_prediction_mat_builder_adapter(self, mat_builder: InteractionMatrixBuilder):
-        mat_builder = deepcopy(mat_builder)
+    def get_prediction_mat_builder_adapter(
+            self, mat_builder: interactions.InteractionMatrixBuilder):
+        mat_builder = copy.deepcopy(mat_builder)
         mat_builder.uid_source_col = self._user_col
         mat_builder.iid_source_col = self._item_col
         mat_builder.rating_source_col = self._prediction_col
         return mat_builder
 
-    @abstractmethod
+    @abc.abstractmethod
     def _get_recommendations_flat(self, user_ids, n_rec, item_ids=None,
                                   exclusions=True, **kwargs):
         return pd.DataFrame()
 
-    @abstractmethod
+    @abc.abstractmethod
     def _predict_on_inds_dense(self, user_inds, item_inds):
         return np.array([])
 
@@ -383,12 +363,14 @@ class BaseDFSparseRecommender(BaseDFRecommender):
             **kwargs):
 
         if user_ids is not None:
-            user_ids = self.remove_unseen_users(user_ids, message_prefix='get_recommendations: ')
+            user_ids = self.remove_unseen_users(
+                user_ids, message_prefix='get_recommendations: ')
         else:
             user_ids = self.all_users
 
         if item_ids is not None:
-            item_ids = self.remove_unseen_items(item_ids, message_prefix='get_recommendations: ')
+            item_ids = self.remove_unseen_items(
+                item_ids, message_prefix='get_recommendations: ')
 
         recos_flat = self._get_recommendations_flat(
             user_ids=user_ids, item_ids=item_ids, n_rec=n_rec,
@@ -418,12 +400,12 @@ class BaseDFSparseRecommender(BaseDFRecommender):
                                 n_rec=100, k=10, return_full_metrics=False):
 
         # convert to list
-        if isinstance(test_dfs, (pd.DataFrame, ObservationsDF)):
+        if isinstance(test_dfs, (pd.DataFrame, interactions.ObservationsDF)):
             test_dfs = [test_dfs]
 
         # convert to dfs
         for i in range(len(test_dfs)):
-            if isinstance(test_dfs[i], ObservationsDF):
+            if isinstance(test_dfs[i], interactions.ObservationsDF):
                 test_dfs[i] = test_dfs[i].df_obs
 
         mat_builder = self.sparse_mat_builder
@@ -488,7 +470,7 @@ class BaseDFSparseRecommender(BaseDFRecommender):
             self, user_ids, item_ids=None, n_rec=10,
             exclusions=True, chunksize=200, results_format='lists'):
 
-        calc_func = partial(
+        calc_func = functools.partial(
             self._get_recommendations_exact,
             n_rec=n_rec,
             item_ids=item_ids,
@@ -497,7 +479,7 @@ class BaseDFSparseRecommender(BaseDFRecommender):
 
         chunksize = int(35000 * chunksize / self.sparse_mat_builder.n_cols)
 
-        ret = map_batches_multiproc(calc_func, user_ids, chunksize=chunksize)
+        ret = array_math.map_batches_multiproc(calc_func, user_ids, chunksize=chunksize)
         return pd.concat(ret, axis=0, sort=False)
 
     def _predict_for_users_dense(self, user_ids, item_ids=None, exclusions=True):
@@ -533,7 +515,7 @@ class BaseDFSparseRecommender(BaseDFRecommender):
         full_pred_mat = self._predict_for_users_dense(user_ids, item_ids,
                                                       exclusions=exclusions)
 
-        top_inds, top_scores = top_N_sorted(full_pred_mat, n=n_rec)
+        top_inds, top_scores = array_math.top_N_sorted(full_pred_mat, n=n_rec)
 
         # best_ids = self.sparse_mat_builder.iid_encoder.inverse_transform(top_inds)
         best_ids = item_ids[top_inds] if item_ids is not None else \
@@ -586,7 +568,8 @@ class BaseDFSparseRecommender(BaseDFRecommender):
         if combine_original_order:
             orig_score = len(item_ids) - np.arange(len(item_ids))
             preds_score = df[self._prediction_col].values
-            df[self._prediction_col] = (rankdata(orig_score) + rankdata(preds_score)) / 2
+            df[self._prediction_col] = (stats.rankdata(orig_score) +
+                                        stats.rankdata(preds_score)) / 2
 
         if sort:
             df.sort_values(self._prediction_col, ascending=False, inplace=True)
@@ -596,11 +579,11 @@ class BaseDFSparseRecommender(BaseDFRecommender):
 
 class BasePredictorRecommender(BaseDFSparseRecommender):
 
-    @abstractmethod
+    @abc.abstractmethod
     def _predict_on_inds(self, user_inds, item_inds):
         pass
 
-    @abstractmethod
+    @abc.abstractmethod
     def _predict_rank(self, test_mat, train_mat=None):
         pass
 
@@ -638,12 +621,12 @@ class BasePredictorRecommender(BaseDFSparseRecommender):
                                       return_full_metrics=False):
 
         # convert to list
-        if isinstance(test_dfs, (pd.DataFrame, ObservationsDF)):
+        if isinstance(test_dfs, (pd.DataFrame, interactions.ObservationsDF)):
             test_dfs = [test_dfs]
 
         # convert to dfs
         for i in range(len(test_dfs)):
-            if isinstance(test_dfs[i], ObservationsDF):
+            if isinstance(test_dfs[i], interactions.ObservationsDF):
                 test_dfs[i] = test_dfs[i].df_obs
 
         def _get_training_ranks():

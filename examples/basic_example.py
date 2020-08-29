@@ -8,7 +8,7 @@ This is a basic example on datasets-1M demonstrating:
 """
 
 # dataset: download and prepare dataframes
-from lightfm_pandas.datasets.prep_movielense_data import get_and_prep_data
+from lightfm_pandas.data.datasets.prep_movielense_data import get_and_prep_data
 
 rating_csv_path, users_csv_path, movies_csv_path = get_and_prep_data()
 
@@ -16,13 +16,13 @@ rating_csv_path, users_csv_path, movies_csv_path = get_and_prep_data()
 import pandas as pd
 
 ratings_df = pd.read_csv(rating_csv_path)
-from lightfm_pandas.data_handlers.interaction_handlers_base import ObservationsDF
+from lightfm_pandas.data.interactions import ObservationsDF
 
 obs = ObservationsDF(ratings_df, uid_col='userid', iid_col='itemid')
 train_obs, test_obs = obs.split_train_test(ratio=0.2)
 
 # train and test LightFM recommender
-from lightfm_pandas.recommenders.lightfm_recommender import LightFMRecommender
+from lightfm_pandas.modeling.lightfm import LightFMRecommender
 
 lfm_rec = LightFMRecommender()
 lfm_rec.fit(train_obs, epochs=10)

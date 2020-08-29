@@ -1,11 +1,9 @@
 import pandas as pd
-from lightfm_pandas.datasets.prep_movielense_data import get_and_prep_data
+from lightfm_pandas.data.datasets.prep_movielense_data import get_and_prep_data
 from lightfm_pandas.utils.testing import TestCaseWithState
 from tests.test_movielens_data import movielens_dir
 
-from lightfm_pandas.data_handlers.interaction_handlers_base import ObservationsDF
-from lightfm_pandas.data_handlers.interactions_with_features import ObsWithFeatures
-
+from lightfm_pandas.data.interactions import ObservationsDF, ObsWithFeatures
 
 rating_csv_path, users_csv_path, movies_csv_path = get_and_prep_data(movielens_dir)
 

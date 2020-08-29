@@ -1,22 +1,13 @@
-import copy
-import logging
-
 import numpy as np
 import pandas as pd
-import scipy.sparse as sp
+from sklearn import preprocessing
+from scipy import sparse as sp
+import sklearn_pandas
 
-from sklearn.preprocessing import LabelBinarizer, normalize, LabelEncoder
-from sklearn_pandas import DataFrameMapper
-
-from lightfm_pandas.utils.sklearn_extenstions import NumericBinningBinarizer
-
-from lightfm_pandas.data_handlers.interaction_handlers_base import ObservationsDF
-from lightfm_pandas.utils.instrumentation import LogLongCallsMeta
-
-logger = logging.getLogger(__name__)
+from lightfm_pandas.utils import instrumentation
 
 
-class ExternalFeaturesDF(LogLongCallsMeta):
+class ExternalFeaturesDF(instrumentation.LogLongCallsMeta):
     """
     handles external items features and feature engineering
     """
@@ -160,7 +151,7 @@ class ExternalFeaturesDF(LogLongCallsMeta):
             # normalize each row
             if normalize_output:
                 axis = int(normalize_output == 'rows')
-                feat_mat = normalize(feat_mat, norm='l1', axis=axis, copy=False)
+                feat_mat = preprocessing.normalize(feat_mat, norm='l1', axis=axis, copy=False)
 
             if add_identity_mat:
                 # identity mat
@@ -205,19 +196,19 @@ class ExternalFeaturesDF(LogLongCallsMeta):
     def init_df_transformer(mode, categorical_feat_cols, numeric_feat_cols, binary_feat_cols,
                             numeric_n_bins=64):
         if mode=='binarize':
-            feat_mapper = DataFrameMapper(
-                [(cat_col, LabelBinarizer(sparse_output=True))
+            feat_mapper = sklearn_pandas.DataFrameMapper(
+                [(cat_col, preprocessing.LabelBinarizer(sparse_output=True))
                  for cat_col in categorical_feat_cols] +
                 [(num_col, NumericBinningBinarizer(n_bins=numeric_n_bins, sparse_output=True))
                  for num_col in numeric_feat_cols] +
-                [(bin_col, LabelBinarizer(sparse_output=True))
+                [(bin_col, preprocessing.LabelBinarizer(sparse_output=True))
                  for bin_col in binary_feat_cols],
                 sparse=True
             )
         elif mode=='encode':
-            feat_mapper = DataFrameMapper(
+            feat_mapper = preprocessing.DataFrameMapper(
                 [(cat_col,
-                  LabelEncoder())
+                  preprocessing.LabelEncoder())
                  for cat_col in categorical_feat_cols],
                 sparse=True,
                 default=None  # pass other columns as is
@@ -227,104 +218,62 @@ class ExternalFeaturesDF(LogLongCallsMeta):
         return feat_mapper
 
 
-class ItemsHandler(LogLongCallsMeta):
+class NumericBinningEncoder(preprocessing.LabelEncoder):
+    """
+    class for label-encoding a continuous variable by binning
+    """
+    def __init__(self, n_bins=50):
+        super().__init__()
+        self.n_bins = n_bins
+        self.bins = None
 
-    def __init__(self, df_items, item_id_col='item_id', **kwargs):
-        super().__init__(**kwargs)
-        self.item_id_col = item_id_col
-        self.df_items = self._preprocess_items_df(df_items)
+    def fit(self, y):
+        percentiles = list(np.linspace(0, 100, num=(self.n_bins + 1)))
+        self.bins = np.percentile(y, percentiles[1:])
 
-    def _preprocess_items_df(self, df_items):
-        # make sure the ID col is of object type
-        df_items[self.item_id_col] = df_items[self.item_id_col].astype(str)
-        df_items.drop_duplicates(self.item_id_col, inplace=True)
-        return df_items
+        if len(np.unique(self.bins)) != len(self.bins):
+            self.bins = list(np.linspace(
+                np.min(y) - 0.001, np.max(y) + 0.001, num=(self.n_bins + 1)))
 
-    def __add__(self, other):
-        self.df_items = pd.concat([self.df_items, other.df_items], sort=False)
-        self.df_items.drop_duplicates(self.item_id_col, inplace=True)
         return self
 
-    def __repr__(self):
-        return super().__repr__() + ', %d Items' % len(self.df_items)
+    def transform(self, y):
+        inc_bins = list(self.bins)
+        inc_bins[0] = min(inc_bins[0], np.min(y))
+        inc_bins[-1] = max(inc_bins[-1], np.max(y))
 
-    def get_item_features(self,
-                          categorical_unique_ratio=0.05,
-                          categorical_n_unique=20,
-                          selection_filter=None, **kwargs):
+        y_binned = pd.cut(y, bins=inc_bins, labels=False, include_lowest=True)
+        y_ind = y_binned.astype(int, copy=False)
+        return y_ind
+
+
+class NumericBinningBinarizer(preprocessing.LabelBinarizer):
+    """
+    class for one-hot encoding a continuous variable by binning
+    """
+    def __init__(self, n_bins=50, spillage=2, **kwargs):
         """
-
-        :param categorical_n_unique: consider categorical if less unique values than this
-        :param categorical_unique_ratio: consider categorical if ratio of uniques to length less than this
-        :param selection_filter: include only those column, if None or empty includes all
+        :param n_bins: number of bins
+        :param spillage:
+            number of neighbouring bins that are also activated in
+            order to preserve some "proximity" relationship, default to 2
+            e.g. for spillage=1 a result vec would be [.. 0, 0, 0.25, 0.5, 1, 0.5, 0.25, 0, 0 ..]
         :param kwargs:
-        :return: dataframe of features, list of numeric columns, list of categorical columns
         """
-        feat_df = self.df_items
+        super().__init__(**kwargs)
+        self._spillage = spillage
+        self._binner = NumericBinningEncoder(n_bins=n_bins)
 
-        ext_feat = ExternalFeaturesDF(
-            feat_df=feat_df, id_col=self.item_id_col, **kwargs)
+    def fit(self, y):
+        self._binner.fit(y)
+        super().fit(range(len(self._binner.bins)))
+        return self
 
-        ext_feat.apply_selection_filter(selection_filter)
-
-        return ext_feat
-
-
-class ObsWithFeatures(ObservationsDF, ItemsHandler):
-
-    def __init__(self, df_obs, df_items, item_id_col='item_id', **kwargs):
-        super().__init__(df_obs=df_obs, df_items=df_items, item_id_col=item_id_col, **kwargs)
-        self._filter_relevant_obs_and_items(stage='init')
-
-    def _filter_relevant_obs_and_items(self, stage=''):
-        items_ids = self.df_items[self.item_id_col].unique().astype(str)
-        obs_ids = self.df_obs[self.iid_col].unique().astype(str)
-
-        obs_filt = self.df_obs[self.iid_col].astype(str).isin(items_ids)
-        item_filt = self.df_items[self.item_id_col].astype(str).isin(obs_ids)
-
-        self.df_obs = self.df_obs[obs_filt].copy()
-        self.df_items = self.df_items[item_filt].copy()
-
-        n_dropped_obs = (~obs_filt).sum()
-        n_dropped_items = (~item_filt).sum()
-        if n_dropped_obs + n_dropped_items:
-            logger.info('ObsWithFeatures:_filter_relevant_obs_and_items:%s '
-                        'dropped %d observations, %d items' % (stage, n_dropped_obs, n_dropped_items))
-
-    def sample_observations(self,
-                            n_users=None,
-                            n_items=None,
-                            method='random',
-                            min_user_hist=0,
-                            min_item_hist=0,
-                            users_to_keep=(),
-                            items_to_keep=(),
-                            random_state=None):
-        sample_df = super().sample_observations(n_users=n_users,
-                                                n_items=n_items,
-                                                method=method,
-                                                min_user_hist=min_user_hist,
-                                                min_item_hist=min_item_hist,
-                                                users_to_keep=users_to_keep,
-                                                items_to_keep=items_to_keep,
-                                                random_state=random_state)
-        other = copy.deepcopy(self)
-        other.df_obs = sample_df.df_obs
-        other._filter_relevant_obs_and_items(stage='sample_observations')
-        return other
-
-    def filter_columns_by_df(self, other_df_obs):
-        """
-        removes users or items that are not in the other user dataframe
-        :param other_df_obs: other dataframe, that has the same structure (column names)
-        :return: new observation handler
-        """
-        other = super().filter_columns_by_df(other_df_obs)
-        other._filter_relevant_obs_and_items(stage='filter_columns_by_df')
-        return other
-
-    def filter_interactions_by_df(self, other_df_obs, mode):
-        other = super().filter_interactions_by_df(other_df_obs, mode)
-        other._filter_relevant_obs_and_items(stage='remove_interactions_by_df')
-        return other
+    def transform(self, y):
+        y_binned = self._binner.transform(y)
+        binarized = super().transform(y_binned)
+        if self._spillage:
+            for i in range(1, self._spillage + 1):
+                binarized += super().transform(y_binned + i) / 2**i
+                binarized += super().transform(y_binned - i) / 2**i
+        return binarized

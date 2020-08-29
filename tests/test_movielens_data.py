@@ -6,7 +6,7 @@ movielens_dir = os.path.join(os.path.dirname(__file__), '../examples/out')
 
 class TestMovieLens(unittest.TestCase):
     def test_data(self):
-        from lightfm_pandas.datasets.prep_movielense_data import get_and_prep_data
+        from lightfm_pandas.data.datasets.prep_movielense_data import get_and_prep_data
         rating_csv_path, users_csv_path, movies_csv_path = get_and_prep_data(movielens_dir)
 
         ratings_df = pd.read_csv(rating_csv_path)
@@ -26,7 +26,7 @@ class TestMovieLens(unittest.TestCase):
                                'Childrens', 'Documentary'})
         self.assertEqual(len(movies_df), 3883)
 
-        from lightfm_pandas.data_handlers.interaction_handlers_base import ObservationsDF
+        from lightfm_pandas.data.interactions import ObservationsDF
         obs = ObservationsDF(df_obs=ratings_df)
         info = obs.data_info()
         self.assertEqual(info['len'], 989539)

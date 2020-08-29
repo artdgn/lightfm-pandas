@@ -1,12 +1,11 @@
-from collections import OrderedDict
-from multiprocessing.pool import ThreadPool
+import collections
+import multiprocessing.pool
 
 import numpy as np
 import pandas as pd
-from lightfm.evaluation import precision_at_k, recall_at_k, auc_score, reciprocal_rank
+import lightfm.evaluation
 
-from lightfm_pandas.utils.instrumentation import LogLongCallsMeta
-from lightfm_pandas.utils.parallelism import N_CPUS
+from lightfm_pandas.utils import instrumentation
 
 
 class ModelMockRanksCacher:
@@ -35,7 +34,7 @@ def mean_scores_report_on_ranks(ranks_list, datasets, dataset_names, k=10):
     return pd.DataFrame(data=data, index=dataset_names), full_reports
 
 
-class RanksScorer(LogLongCallsMeta):
+class RanksScorer(instrumentation.LogLongCallsMeta):
 
     def __init__(self, ranks_mat, test_mat, train_mat=None, k=10):
         self.ranks_mat = ranks_mat
@@ -62,7 +61,7 @@ class RanksScorer(LogLongCallsMeta):
             }
 
     def scores_report(self):
-        metrics = OrderedDict([
+        metrics = collections.OrderedDict([
             ('AUC', self.auc),
             ('reciprocal', self.reciprocal),
             ('n-MRR@%d' % self.k, self.n_mrr_at_k),
@@ -75,7 +74,7 @@ class RanksScorer(LogLongCallsMeta):
             ('n-coverage@%d' % self.k, self.n_coverage_at_k),
         ])
 
-        with ThreadPool(len(metrics)) as pool:
+        with multiprocessing.pool.ThreadPool(len(metrics)) as pool:
             res = [pool.apply_async(f) for f in metrics.values()]
             for k, r in zip(metrics.keys(), res):
                 metrics[k] = r.get()
@@ -129,7 +128,7 @@ def best_possible_ranks(test_mat):
 
 def precision_at_k_on_ranks(
         ranks, test_interactions, train_interactions=None, k=10, preserve_rows=False):
-    return precision_at_k(
+    return lightfm.evaluation.precision_at_k(
         model=ModelMockRanksCacher(ranks.copy()),
         test_interactions=test_interactions,
         train_interactions=train_interactions,
@@ -139,7 +138,7 @@ def precision_at_k_on_ranks(
 
 def recall_at_k_on_ranks(
         ranks, test_interactions, train_interactions=None, k=10, preserve_rows=False):
-    return recall_at_k(
+    return lightfm.evaluation.recall_at_k(
         model=ModelMockRanksCacher(ranks.copy()),
         test_interactions=test_interactions,
         train_interactions=train_interactions,
@@ -150,7 +149,7 @@ def recall_at_k_on_ranks(
 
 def auc_score_on_ranks(
         ranks, test_interactions, train_interactions=None, preserve_rows=False):
-    return auc_score(
+    return lightfm.evaluation.auc_score(
         model=ModelMockRanksCacher(ranks.copy()),
         test_interactions=test_interactions,
         train_interactions=train_interactions,
@@ -160,7 +159,7 @@ def auc_score_on_ranks(
 
 def reciprocal_rank_on_ranks(
         ranks, test_interactions, train_interactions=None, preserve_rows=False):
-    return reciprocal_rank(
+    return lightfm.evaluation.reciprocal_rank(
         model=ModelMockRanksCacher(ranks.copy()),
         test_interactions=test_interactions,
         train_interactions=train_interactions,

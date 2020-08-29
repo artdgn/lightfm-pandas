@@ -6,8 +6,8 @@ from copy import deepcopy
 
 import time
 
-from lightfm_pandas.data_handlers.interactions_with_features import ObsWithFeatures
-from lightfm_pandas.datasets.prep_movielense_data import get_and_prep_data
+from lightfm_pandas.data.interactions import ObsWithFeatures
+from lightfm_pandas.data.datasets.prep_movielense_data import get_and_prep_data
 
 from lightfm_pandas.utils.instrumentation import pickle_size_mb
 
@@ -65,7 +65,7 @@ class TestRecommendersBasic(TestCaseWithState):
     def test_b_1_lfm_recommender(self):
         self._setup_obs_handler()
 
-        from lightfm_pandas.recommenders.lightfm_recommender import LightFMRecommender
+        from lightfm_pandas.modeling.lightfm import LightFMRecommender
         lfm_rec = LightFMRecommender()
         lfm_rec.fit(self.state.train_obs, epochs=20)
         self.assertEqual(lfm_rec.fit_params['epochs'], 20)
@@ -76,7 +76,7 @@ class TestRecommendersBasic(TestCaseWithState):
     def test_b_1_lfm_hybrid(self):
         self._setup_obs_handler()
 
-        from lightfm_pandas.recommenders.lightfm_recommender import LightFMRecommender
+        from lightfm_pandas.modeling.lightfm import LightFMRecommender
         lfm_rec = LightFMRecommender(external_features=self.state.train_obs.get_item_features(), no_components=50)
         lfm_rec.fit(self.state.train_obs, epochs=20)
         self._test_recommender(lfm_rec)

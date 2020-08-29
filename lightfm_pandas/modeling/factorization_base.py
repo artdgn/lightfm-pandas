@@ -1,34 +1,22 @@
-from abc import abstractmethod
+import abc
 
 import pandas as pd
 import numpy as np
 import scipy.sparse as sp
 
-from lightfm_pandas.recommenders.recommender_base import BasePredictorRecommender
-from lightfm_pandas.utils.similarity import most_similar
+from lightfm_pandas.modeling import base
+from lightfm_pandas.utils import array_math
 
 
-class BaseFactorizationRecommender(BasePredictorRecommender):
+class BaseFactorizationRecommender(base.BasePredictorRecommender):
 
-    @abstractmethod
+    @abc.abstractmethod
     def _get_item_factors(self, mode=None):
         return  np.array([0]), np.array([0])
 
-    @abstractmethod
+    @abc.abstractmethod
     def _get_user_factors(self, mode=None):
         return np.array([0]), np.array([0])
-
-    @abstractmethod
-    def _prep_for_fit(self, train_obs, **fit_params):
-        pass
-
-    @abstractmethod
-    def fit_partial(self, train_obs, **fit_params):
-        pass
-
-    @abstractmethod
-    def _set_epochs(self, epochs):
-        pass
 
     def _factors_to_dataframe(self, factor_func, include_biases=False):
         b, f = factor_func()
@@ -70,7 +58,7 @@ class BaseFactorizationRecommender(BasePredictorRecommender):
 
         biases, representations = self._get_item_factors(mode=embeddings_mode)
 
-        best_ids, best_scores = most_similar(
+        best_ids, best_scores = array_math.most_similar(
             source_ids=item_ids,
             target_ids=target_item_ids,
             source_encoder=self.sparse_mat_builder.iid_encoder,
@@ -102,7 +90,7 @@ class BaseFactorizationRecommender(BasePredictorRecommender):
 
         user_biases, user_representations = self._get_user_factors()
 
-        best_ids, best_scores = most_similar(
+        best_ids, best_scores = array_math.most_similar(
             source_ids=user_ids,
             target_ids=target_user_ids,
             source_encoder=self.sparse_mat_builder.uid_encoder,
@@ -136,7 +124,7 @@ class BaseFactorizationRecommender(BasePredictorRecommender):
         if not use_biases:
             user_biases, item_biases = None, None
 
-        best_ids, best_scores = most_similar(
+        best_ids, best_scores = array_math.most_similar(
             source_ids=user_ids,
             target_ids=item_ids,
             source_encoder=self.sparse_mat_builder.uid_encoder,
